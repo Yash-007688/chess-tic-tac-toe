@@ -1,8 +1,8 @@
 from flask import Flask, render_template, request, session, redirect, url_for
-import random
+import random\nimport os
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Change this to a random secret key
+app.secret_key = os.environ.get("SECRET_KEY", "your_secret_key_here")
 
 # Chess classes
 class Piece:
@@ -627,4 +627,4 @@ def computer_move_chess():
     session.pop('possible_moves', None)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
