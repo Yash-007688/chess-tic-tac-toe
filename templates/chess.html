@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chess</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .game {
+            text-align: center;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            gap: 0;
+            margin: 20px auto;
+            border: 2px solid #333;
+        }
+        .cell {
+            width: 60px;
+            height: 60px;
+            background-color: #f0d9b5;
+            border: 1px solid #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 48px;
+            cursor: pointer;
+        }
+        .cell:nth-child(odd):nth-child(8n+1),
+        .cell:nth-child(even):nth-child(8n+2),
+        .cell:nth-child(odd):nth-child(8n+3),
+        .cell:nth-child(even):nth-child(8n+4),
+        .cell:nth-child(odd):nth-child(8n+5),
+        .cell:nth-child(even):nth-child(8n+6),
+        .cell:nth-child(odd):nth-child(8n+7),
+        .cell:nth-child(even):nth-child(8n+8) {
+            background-color: #b58863;
+        }
+        .cell:hover {
+            background-color: #e0e0e0;
+        }
+        .selected {
+            background-color: #ffff00 !important;
+        }
+        .possible-move {
+            background-color: #90ee90 !important;
+        }
+        .message {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .reset {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: #f44336;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .reset:hover {
+            background-color: #d32f2f;
+        }
+        .captured {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .captured-white, .captured-black {
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game">
+        <h1>Chess</h1>
+        <div class="message">
+            {% if session.winner %}
+                {% if session.mode == 'computer' and session.winner == 'white' %}
+                    Computer wins!
+                {% elif session.mode == 'computer' and session.winner == 'black' %}
+                    You win!
+                {% else %}
+                    Player {{ session.winner }} wins!
+                {% endif %}
+            {% else %}
+                {% if session.mode == 'computer' and session.turn == 'black' %}
+                    Computer's turn
+                {% elif session.mode == 'computer' and session.turn == 'white' %}
+                    Your turn
+                {% else %}
+                    {{ session.turn }}'s turn
+                {% endif %}
+            {% endif %}
+        </div>
+        {% set symbols = {
+            'wK': '♔', 'wQ': '♕', 'wR': '♖', 'wB': '♗', 'wN': '♘', 'wP': '♙',
+            'bK': '♚', 'bQ': '♛', 'bR': '♜', 'bB': '♝', 'bN': '♞', 'bP': '♟'
+        } %}
+        {% set current_color = 'w' if session.turn == 'white' else 'b' %}
+        <div class="board">
+            {% for i in range(8) %}
+                {% for j in range(8) %}
+                    {% set cell_content = session.board[i][j] %}
+                    {% set is_selected = session.selected and session.selected[0] == i and session.selected[1] == j %}
+                    {% set is_possible = session.possible_moves and [i, j] in session.possible_moves %}
+                    {% set is_own_piece = cell_content and cell_content[0] == current_color %}
+                    {% set classes = ['cell'] %}
+                    {% if is_selected %}
+                        {% set _ = classes.append('selected') %}
+                    {% endif %}
+                    {% if is_possible %}
+                        {% set _ = classes.append('possible-move') %}
+                    {% endif %}
+                    {% if is_possible %}
+                        <div class="{{ classes | join(' ') }}" ondrop="drop(event, {{i}}, {{j}})" ondragover="allowDrop(event)">
+                            <a href="{{ url_for('move_to', row=i, col=j) }}">
+                                {% if cell_content %}
+                                    {{ symbols[cell_content] }}
+                                {% endif %}
+                            </a>
+                        </div>
+                    {% elif is_own_piece %}
+                        <div class="{{ classes | join(' ') }}" draggable="true" ondragstart="dragStart(event, {{i}}, {{j}})" ondrop="drop(event, {{i}}, {{j}})" ondragover="allowDrop(event)">
+                            <a href="{{ url_for('select_piece', row=i, col=j) }}">
+                                {% if cell_content %}
+                                    {{ symbols[cell_content] }}
+                                {% endif %}
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="{{ classes | join(' ') }}" ondrop="drop(event, {{i}}, {{j}})" ondragover="allowDrop(event)">
+                            {% if cell_content %}
+                                {{ symbols[cell_content] }}
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% endfor %}
+        </div>
+        <div class="captured">
+            <div class="captured-white">
+                <h3>Captured by Black:</h3>
+                {% for piece in session.captured_white %}
+                    {{ symbols[piece] }}
+                {% endfor %}
+            </div>
+            <div class="captured-black">
+                <h3>Captured by White:</h3>
+                {% for piece in session.captured_black %}
+                    {{ symbols[piece] }}
+                {% endfor %}
+            </div>
+        </div>
+        <form action="{{ url_for('make_chess_move') }}" method="post">
+            <label>From Row (0-7):</label>
+            <input type="number" name="from_row" min="0" max="7" required>
+            <label>From Col (0-7):</label>
+            <input type="number" name="from_col" min="0" max="7" required>
+            <label>To Row (0-7):</label>
+            <input type="number" name="to_row" min="0" max="7" required>
+            <label>To Col (0-7):</label>
+            <input type="number" name="to_col" min="0" max="7" required>
+            <button type="submit">Make Move</button>
+        </form>
+        <a href="{{ url_for('reset') }}" class="reset">New Game</a>
+    </div>
+    <script>
+        function dragStart(ev, row, col) {
+            ev.dataTransfer.setData("text/plain", row + "," + col);
+        }
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+        }
+
+        function drop(ev, row, col) {
+            ev.preventDefault();
+            var data = ev.dataTransfer.getData("text/plain");
+            window.location.href = "/move_to/" + row + "/" + col + "?from=" + data;
+        }
+    </script>
+</body>
+</html>

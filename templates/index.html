@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .game {
+            text-align: center;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px);
+            gap: 5px;
+            margin: 20px auto;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            background-color: white;
+            border: 2px solid #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 48px;
+            cursor: pointer;
+        }
+        .cell:hover {
+            background-color: #e0e0e0;
+        }
+        .message {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .reset {
+            display: inline-block;
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            background-color: #f44336;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .reset:hover {
+            background-color: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="game">
+        <h1>Tic Tac Toe</h1>
+        <div class="message">
+            {% if session.winner %}
+                {% if session.mode == 'computer' and session.winner == 'O' %}
+                    Computer wins!
+                {% elif session.mode == 'computer' and session.winner == 'X' %}
+                    You win!
+                {% else %}
+                    Player {{ session.winner }} wins!
+                {% endif %}
+            {% else %}
+                {% if session.mode == 'computer' and session.turn == 'O' %}
+                    Computer's turn
+                {% elif session.mode == 'computer' and session.turn == 'X' %}
+                    Your turn
+                {% else %}
+                    Player {{ session.turn }}'s turn
+                {% endif %}
+            {% endif %}
+        </div>
+        <div class="board">
+            {% for i in range(3) %}
+                {% for j in range(3) %}
+                    <a href="{{ url_for('move', row=i, col=j) }}" class="cell">
+                        {{ session.board[i][j] }}
+                    </a>
+                {% endfor %}
+            {% endfor %}
+        </div>
+        <a href="{{ url_for('reset') }}" class="reset">New Game</a>
+    </div>
+</body>
+</html>
