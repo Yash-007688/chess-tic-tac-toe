@@ -1,9 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for
-import random\nimport os
-
-app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "your_secret_key_here")
-
+﻿
 # Chess classes
 class Piece:
     def __init__(self, color, symbol):
