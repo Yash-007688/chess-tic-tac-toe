@@ -1,4 +1,17 @@
-﻿
+
+from flask import Flask, render_template, session, redirect, url_for, request
+import os
+import random
+import requests
+from dotenv import load_dotenv
+from error import register_error_handlers
+
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = 'your_secret_key_here'  # Add a secret key for sessions
+register_error_handlers(app)
+
 # Chess classes
 class Piece:
     def __init__(self, color, symbol):
@@ -421,26 +434,31 @@ def minimax(board, depth, is_maximizing):
         return min_eval
 
 def computer_move():
-    board = session['board']
-    best_score = -float('inf')
-    best_move = None
-    for i in range(3):
-        for j in range(3):
-            if not board[i][j]:
-                board[i][j] = 'O'
-                score = minimax(board, 0, False)
-                board[i][j] = ''
-                if score > best_score:
-                    best_score = score
-                    best_move = (i, j)
-    if best_move:
-        session['board'][best_move[0]][best_move[1]] = 'O'
-        if check_winner(session['board'], 'O'):
-            session['winner'] = 'O'
-        elif is_full(session['board']):
-            session['winner'] = 'Draw'
-        else:
-            session['turn'] = 'X'
+    move = get_ai_move_tictactoe(session['board'])
+    if move:
+        session['board'][move[0]][move[1]] = 'O'
+    else:
+        # Fallback to minimax
+        board = session['board']
+        best_score = -float('inf')
+        best_move = None
+        for i in range(3):
+            for j in range(3):
+                if not board[i][j]:
+                    board[i][j] = 'O'
+                    score = minimax(board, 0, False)
+                    board[i][j] = ''
+                    if score > best_score:
+                        best_score = score
+                        best_move = (i, j)
+        if best_move:
+            session['board'][best_move[0]][best_move[1]] = 'O'
+    if check_winner(session['board'], 'O'):
+        session['winner'] = 'O'
+    elif is_full(session['board']):
+        session['winner'] = 'Draw'
+    else:
+        session['turn'] = 'X'
 
 def piece_value(piece):
     if not piece:
@@ -515,6 +533,64 @@ king_table = [
     [20, 30, 10,  0,  0, 10, 30, 20]
 ]
 
+def get_ai_move_tictactoe(board):
+    prompt = "You are playing tic tac toe as O. The board is:\n"
+    for row in board:
+        prompt += ' '.join(cell if cell else '.' for cell in row) + '\n'
+    prompt += "Make the best move. Respond with row,col (0-2)"
+    try:
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "meta-llama/llama-3.1-8b-instruct:free",
+                "messages": [{"role": "user", "content": prompt}]
+            },
+            timeout=10
+        )
+        if response.status_code == 200:
+            move = response.json()['choices'][0]['message']['content'].strip()
+            r, c = map(int, move.split(','))
+            if 0 <= r < 3 and 0 <= c < 3 and not board[r][c]:
+                return r, c
+    except:
+        pass
+    return None
+
+def get_ai_move_chess(board, turn):
+    prompt = f"You are playing chess as {turn}. The board is:\n"
+    for i in range(8):
+        row = []
+        for j in range(8):
+            piece = board[i][j]
+            row.append(piece if piece else '.')
+        prompt += ' '.join(row) + '\n'
+    prompt += "Make the best move. Respond with from_row,from_col,to_row,to_col (0-7)"
+    try:
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {os.environ['OPENROUTER_API_KEY']}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "meta-llama/llama-3.1-8b-instruct:free",
+                "messages": [{"role": "user", "content": prompt}]
+            },
+            timeout=10
+        )
+        if response.status_code == 200:
+            move = response.json()['choices'][0]['message']['content'].strip()
+            fr, fc, tr, tc = map(int, move.split(','))
+            if all(0 <= x < 8 for x in [fr, fc, tr, tc]):
+                return fr, fc, tr, tc
+    except:
+        pass
+    return None
+
 def position_value(piece, row, col):
     if not piece:
         return 0
@@ -557,63 +633,33 @@ def evaluate_board(board):
     return score
 
 def computer_move_chess():
-    board = board_to_objects(session['board'])
-    best_score = -float('inf')
-    best_move = None
-    for i in range(8):
-        for j in range(8):
-            piece = board[i][j]
-            if piece and piece.color == 'black':
-                moves = piece.get_possible_moves(board, i, j)
-                for move in moves:
-                    # Simulate move
-                    temp_board = [r[:] for r in board]
-                    temp_board[move[0]][move[1]] = temp_board[i][j]
-                    temp_board[i][j] = None
-                    score = evaluate_board(temp_board)
-                    if score > best_score:
-                        best_score = score
-                        best_move = (i, j, move[0], move[1])
-    if best_move:
-        from_row, from_col, to_row, to_col = best_move
+    move = get_ai_move_chess(session['board'], 'black')
+    if move:
+        from_row, from_col, to_row, to_col = move
         session['board'][to_row][to_col] = session['board'][from_row][from_col]
         session['board'][from_row][from_col] = ''
-        session['turn'] = 'white'
-        board = board_to_objects(session['board'])
-        if is_checkmate(board, 'white'):
-            session['winner'] = 'black'
-    session.pop('selected', None)
-    session.pop('possible_moves', None)
-
-def computer_move_chess():
-    board = board_to_objects(session['board'])
-    possible_moves = []
-    capture_moves = []
-    for i in range(8):
-        for j in range(8):
-            piece = board[i][j]
-            if piece and piece.color == 'black':  # Assuming computer is black
-                moves = piece.get_possible_moves(board, i, j)
-                for move in moves:
-                    target = board[move[0]][move[1]]
-                    if target:  # Capture
-                        capture_moves.append((i, j, move[0], move[1], piece_value(target)))
-                    else:
-                        possible_moves.append((i, j, move[0], move[1]))
-    # Choose best capture
-    if capture_moves:
-        capture_moves.sort(key=lambda x: x[4], reverse=True)  # Sort by captured value descending
-        best_value = capture_moves[0][4]
-        best_captures = [m for m in capture_moves if m[4] == best_value]
-        move = random.choice(best_captures)
-        from_row, from_col, to_row, to_col = move[:4]
-    elif possible_moves:
-        move = random.choice(possible_moves)
-        from_row, from_col, to_row, to_col = move
     else:
-        return  # No moves?
-    session['board'][to_row][to_col] = session['board'][from_row][from_col]
-    session['board'][from_row][from_col] = ''
+        # Fallback to evaluation
+        board = board_to_objects(session['board'])
+        best_score = -float('inf')
+        best_move = None
+        for i in range(8):
+            for j in range(8):
+                piece = board[i][j]
+                if piece and piece.color == 'black':
+                    moves = piece.get_possible_moves(board, i, j)
+                    for mv in moves:
+                        temp_board = [r[:] for r in board]
+                        temp_board[mv[0]][mv[1]] = temp_board[i][j]
+                        temp_board[i][j] = None
+                        score = evaluate_board(temp_board)
+                        if score > best_score:
+                            best_score = score
+                            best_move = (i, j, mv[0], mv[1])
+        if best_move:
+            from_row, from_col, to_row, to_col = best_move
+            session['board'][to_row][to_col] = session['board'][from_row][from_col]
+            session['board'][from_row][from_col] = ''
     session['turn'] = 'white'
     board = board_to_objects(session['board'])
     if is_checkmate(board, 'white'):
